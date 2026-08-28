@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Gecko Coiling Vinyl Ring -->
+    <path
+        android:strokeColor="#FF0000"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,22 A 32,32 0 1 1 22,54 A 32,32 0 0 1 54,22" />
+
+    <!-- Inner Soundwave Accents & Gecko Body -->
+    <path
+        android:strokeColor="#FF3333"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 64,30 C 74,36 78,46 76,56 M 34,44 C 32,54 36,66 46,72 M 54,34 A 20,20 0 1 1 34,54 A 20,20 0 0 1 54,34" />
+
+    <!-- Gecko Head and Tail Accents -->
+    <path
+        android:fillColor="#FF0000"
+        android:pathData="M 62,24 C 66,21 72,23 70,28 C 68,31 63,28 62,24 Z" />
+
+    <!-- Central White Play Triangle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 48,44 L 66,54 L 48,64 Z" />
+</vector>

@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "Gecko Background Audio & Media Engine",
+  "version": "1.0.0",
+  "description": "Prevents media from pausing on tab blur, minimize, or screen lock",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "background_play@geckoflux.com",
+      "strict_min_version": "57.0"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://music.youtube.com/*",
+        "*://*.youtu.be/*"
+      ],
+      "js": ["background_play.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}
