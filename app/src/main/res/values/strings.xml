@@ -1,7 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GeckoFlux</string>
-    <string name="speed_controller_title">Playback Speed</string>
-    <string name="speed_reset">Reset</string>
-    <string name="press_again_to_exit">Press back again to exit</string>
-    <string name="speed_button_desc">Adjust playback speed</string>
+    <string name="app_name">GeckoTube</string>
 </resources>

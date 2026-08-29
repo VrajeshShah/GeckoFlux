@@ -1,7 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
     <style name="Theme.GeckoFlux" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
         <item name="colorPrimary">@color/youtube_red</item>
         <item name="colorOnPrimary">@color/youtube_white</item>
         <item name="android:windowBackground">@color/youtube_black</item>
@@ -9,24 +7,5 @@
         <item name="android:navigationBarColor">@color/youtube_black</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
-
-        <!-- Bottom sheet styling -->
-        <item name="bottomSheetDialogTheme">@style/CustomBottomSheetDialogTheme</item>
-    </style>
-
-    <style name="CustomBottomSheetDialogTheme" parent="ThemeOverlay.Material3.BottomSheetDialog">
-        <item name="bottomSheetStyle">@style/CustomBottomSheetStyle</item>
-    </style>
-
-    <style name="CustomBottomSheetStyle" parent="Widget.Material3.BottomSheet">
-        <item name="backgroundTint">@color/youtube_surface</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.App.LargeComponent</item>
-    </style>
-
-    <style name="ShapeAppearance.App.LargeComponent" parent="ShapeAppearance.Material3.Corner.Large">
-        <item name="cornerSizeTopLeft">24dp</item>
-        <item name="cornerSizeTopRight">24dp</item>
-        <item name="cornerSizeBottomLeft">0dp</item>
-        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 </resources>

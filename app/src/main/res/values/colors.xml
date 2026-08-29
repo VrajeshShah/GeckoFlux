@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark Mode Colors (YouTube / OLED Aesthetic) -->
     <color name="youtube_black">#0F0F0F</color>
-    <color name="youtube_surface">#212121</color>
-    <color name="youtube_surface_variant">#272727</color>
     <color name="youtube_red">#FF0000</color>
     <color name="youtube_white">#FFFFFF</color>
-    <color name="youtube_text_secondary">#AAAAAA</color>
-    <color name="youtube_chip_bg">#383838</color>
 </resources>

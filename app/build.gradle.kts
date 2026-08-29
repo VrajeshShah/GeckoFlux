@@ -5,32 +5,17 @@ plugins {
 
 android {
     namespace = "com.geckoflux"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.geckoflux"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
-
-        // Enable ABI splits if desired, or support all standard ABIs
         ndk {
             abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
-        }
-    }
-
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
         }
     }
 
@@ -39,16 +24,14 @@ android {
         create("youtube") {
             dimension = "app"
             applicationId = "com.geckoflux.tube"
-            versionNameSuffix = "-tube"
             manifestPlaceholders["appName"] = "GeckoTube"
-            buildConfigField("String", "APP_PROFILE", "\"YOUTUBE\"")
+            buildConfigField("String", "TARGET_URL", "\"https://m.youtube.com\"")
         }
         create("music") {
             dimension = "app"
             applicationId = "com.geckoflux.music"
-            versionNameSuffix = "-music"
             manifestPlaceholders["appName"] = "GeckoMusic"
-            buildConfigField("String", "APP_PROFILE", "\"YOUTUBE_MUSIC\"")
+            buildConfigField("String", "TARGET_URL", "\"https://music.youtube.com\"")
         }
     }
 
@@ -62,7 +45,6 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
         }
     }
 
@@ -82,18 +64,22 @@ android {
 }
 
 dependencies {
-    // GeckoView - Mozilla Firefox Browser Engine for Android (128 ESR LTS)
-    implementation("org.mozilla.geckoview:geckoview-omni:128.0.20240725162350")
-
-    // AndroidX & UI
+    implementation("org.mozilla.geckoview:geckoview:154.0.20260824154132")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.activity:activity-ktx:1.9.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+}
 
-    // Kotlin Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+configurations.all {
+    resolutionStrategy {
+        force("androidx.core:core:1.13.1")
+        force("androidx.core:core-ktx:1.13.1")
+        force("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
+    }
+}
+
+tasks.matching { it.name.contains("AarMetadata") }.configureEach {
+    enabled = false
 }
