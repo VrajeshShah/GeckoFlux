@@ -9,6 +9,7 @@ internal object FlavorConfig {
 
     private val enabledFeatures: Set<Feature> = setOf(
         Feature.UBLOCK_ORIGIN,
+        Feature.DARK_THEME,
     )
 
     val userAgentMode: Int = GeckoSessionSettings.USER_AGENT_MODE_MOBILE

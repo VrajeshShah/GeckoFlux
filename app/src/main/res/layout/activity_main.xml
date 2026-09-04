@@ -5,18 +5,25 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <org.mozilla.geckoview.GeckoView
-        android:id="@+id/gecko_view"
+    <FrameLayout
+        android:id="@+id/gecko_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
 
-    <com.google.android.material.progressindicator.LinearProgressIndicator
-        android:id="@+id/loading_progress"
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:trackColor="@android:color/transparent" />
+        <org.mozilla.geckoview.GeckoView
+            android:id="@+id/gecko_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/loading_progress"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_gravity="top"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:trackColor="@android:color/transparent" />
+    </FrameLayout>
 
     <!-- First-run Setup Overlay -->
     <FrameLayout

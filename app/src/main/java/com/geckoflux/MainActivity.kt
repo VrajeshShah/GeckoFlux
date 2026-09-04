@@ -1,10 +1,19 @@
 package com.geckoflux
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.geckoflux.databinding.ActivityMainBinding
 import com.geckoflux.extensions.DarkThemeManager
 import com.geckoflux.extensions.UblockManager
@@ -26,6 +35,8 @@ class MainActivity : AppCompatActivity() {
     private var geckoSession: GeckoSession? = null
     private var canGoBack: Boolean = false
     private var pageLoaded: Boolean = false
+    private var isFullScreen: Boolean = false
+    private var lastInsets: Insets = Insets.NONE
 
     private val ublockListener = object : UblockManager.InstallListener {
         override fun onDownloadStarted() {
@@ -90,13 +101,48 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Enable edge-to-edge drawing and notch cutout support
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setupWindowInsets()
         setupBackNavigation()
         setupOverlayActions()
         initGeckoView()
         startAppFlow()
+    }
+
+    private fun setupWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                WindowInsetsCompat.Type.displayCutout() or
+                WindowInsetsCompat.Type.ime()
+            )
+            lastInsets = insets
+            updateLayoutInsets()
+            windowInsets
+        }
+    }
+
+    private fun updateLayoutInsets() {
+        if (isFullScreen) {
+            binding.geckoContainer.setPadding(0, 0, 0, 0)
+        } else {
+            binding.geckoContainer.setPadding(
+                lastInsets.left,
+                lastInsets.top,
+                lastInsets.right,
+                lastInsets.bottom
+            )
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -161,7 +207,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 4. Attach session to GeckoView
+        // 4. Setup Content delegate for Fullscreen support
+        geckoSession?.contentDelegate = object : GeckoSession.ContentDelegate {
+            override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
+                handleFullScreen(fullScreen)
+            }
+        }
+
+        // 5. Attach session to GeckoView
         geckoSession?.open(geckoRuntime!!)
         binding.geckoView.setSession(geckoSession!!)
     }
@@ -208,10 +261,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleFullScreen(fullScreen: Boolean) {
+        if (isFullScreen == fullScreen) return
+        isFullScreen = fullScreen
+
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        if (fullScreen) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        }
+        updateLayoutInsets()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && isFullScreen) {
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (canGoBack && geckoSession != null) {
+                if (isFullScreen) {
+                    geckoSession?.exitFullScreen()
+                } else if (canGoBack && geckoSession != null) {
                     geckoSession?.goBack()
                 } else {
                     isEnabled = false
@@ -219,6 +303,43 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private var fsDownX = 0f
+    private var fsDownY = 0f
+    private var fsDownTime = 0L
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (isFullScreen && FeatureManager.isEnabled(Feature.SWIPE_DOWN_EXIT_FULLSCREEN)) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    fsDownX = ev.rawX
+                    fsDownY = ev.rawY
+                    fsDownTime = System.currentTimeMillis()
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaX = ev.rawX - fsDownX
+                    val deltaY = ev.rawY - fsDownY
+                    val duration = System.currentTimeMillis() - fsDownTime
+                    // Definite downward swipe while in fullscreen:
+                    // 1. Swiped downwards by at least 120 pixels
+                    // 2. Significantly vertical (vertical delta > 1.5 * horizontal delta)
+                    // 3. Fast flick/swipe within 500ms
+                    if (deltaY > 120 && Math.abs(deltaY) > Math.abs(deltaX) * 1.5 && duration < 500) {
+                        geckoSession?.exitFullScreen()
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isFullScreen) {
+            geckoSession?.exitFullScreen()
+        }
     }
 
     override fun onDestroy() {
