@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GeckoTube</string>
+    <string name="setup_title">Setting up %1$s</string>
+    <string name="setup_checking">Checking ad-blocker status…</string>
+    <string name="setup_ublock_downloading">Downloading uBlock Origin ad-blocker…</string>
+    <string name="setup_ublock_installing">Configuring uBlock Origin in browser engine…</string>
+    <string name="setup_error_network">Unable to download uBlock Origin. Please check your internet connection.</string>
+    <string name="btn_retry">Retry</string>
+    <string name="btn_continue_without_adblock">Continue without Adblock</string>
 </resources>

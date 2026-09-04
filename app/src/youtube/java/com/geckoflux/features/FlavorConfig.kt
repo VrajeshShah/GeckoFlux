@@ -1,0 +1,17 @@
+package com.geckoflux.features
+
+import org.mozilla.geckoview.GeckoSessionSettings
+
+/**
+ * Feature configuration specific to the GeckoTube (youtube) flavor.
+ */
+internal object FlavorConfig {
+
+    private val enabledFeatures: Set<Feature> = setOf(
+        Feature.UBLOCK_ORIGIN,
+    )
+
+    val userAgentMode: Int = GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+
+    fun isFeatureEnabled(feature: Feature): Boolean = feature in enabledFeatures
+}
