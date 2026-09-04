@@ -17,5 +17,6 @@ class FeatureManagerTest {
     fun testFeatureEnumValues() {
         val features = Feature.values()
         assertTrue(features.contains(Feature.UBLOCK_ORIGIN))
+        assertTrue(features.contains(Feature.DARK_THEME))
     }
 }

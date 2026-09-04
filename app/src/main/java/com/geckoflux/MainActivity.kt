@@ -6,6 +6,7 @@ import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.geckoflux.databinding.ActivityMainBinding
+import com.geckoflux.extensions.DarkThemeManager
 import com.geckoflux.extensions.UblockManager
 import com.geckoflux.features.Feature
 import com.geckoflux.features.FeatureManager
@@ -71,6 +72,10 @@ class MainActivity : AppCompatActivity() {
 
         override fun onReady() {
             binding.setupOverlay.visibility = View.GONE
+            val runtime = geckoRuntime
+            if (runtime != null && FeatureManager.isEnabled(Feature.DARK_THEME)) {
+                DarkThemeManager.ensureInstalled(runtime)
+            }
             loadTargetUrl()
         }
 
@@ -98,7 +103,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.dataString?.let { uri ->
-            geckoSession?.loadUri(uri)
+            loadUriWithPreferences(uri)
         }
     }
 
@@ -117,6 +122,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnContinue.setOnClickListener {
             binding.setupOverlay.visibility = View.GONE
+            val runtime = geckoRuntime
+            if (runtime != null && FeatureManager.isEnabled(Feature.DARK_THEME)) {
+                DarkThemeManager.ensureInstalled(runtime)
+            }
             loadTargetUrl()
         }
     }
@@ -158,9 +167,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAppFlow() {
-        if (FeatureManager.isEnabled(Feature.UBLOCK_ORIGIN)) {
-            val runtime = geckoRuntime ?: return
+        val runtime = geckoRuntime ?: return
 
+        if (FeatureManager.isEnabled(Feature.UBLOCK_ORIGIN)) {
             // Show setup overlay immediately so user has visual feedback from frame 1
             binding.setupOverlay.visibility = View.VISIBLE
             binding.setupErrorSection.visibility = View.GONE
@@ -169,8 +178,12 @@ class MainActivity : AppCompatActivity() {
             binding.setupStatusText.setText(R.string.setup_checking)
             binding.setupProgressDetail.visibility = View.GONE
 
+            // uBlock installs first. Dark theme extension installs second in onReady().
             UblockManager.ensureInstalled(this, runtime, ublockListener)
         } else {
+            if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
+                DarkThemeManager.ensureInstalled(runtime)
+            }
             loadTargetUrl()
         }
     }
@@ -180,7 +193,19 @@ class MainActivity : AppCompatActivity() {
         pageLoaded = true
 
         val targetUrl = intent?.dataString ?: BuildConfig.TARGET_URL
-        geckoSession?.loadUri(targetUrl)
+        loadUriWithPreferences(targetUrl)
+    }
+
+    private fun loadUriWithPreferences(uri: String) {
+        if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
+            val loader = GeckoSession.Loader()
+                .uri(uri)
+                .additionalHeaders(mapOf("Cookie" to "PREF=f6=400"))
+                .headerFilter(GeckoSession.HEADER_FILTER_UNRESTRICTED_UNSAFE)
+            geckoSession?.load(loader)
+        } else {
+            geckoSession?.loadUri(uri)
+        }
     }
 
     private fun setupBackNavigation() {

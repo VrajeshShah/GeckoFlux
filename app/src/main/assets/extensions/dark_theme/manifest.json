@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "GeckoFlux Dark Theme",
+  "version": "1.0",
+  "description": "Enforces dark theme preference for YouTube",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "darktheme@geckoflux.com"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "dark.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
