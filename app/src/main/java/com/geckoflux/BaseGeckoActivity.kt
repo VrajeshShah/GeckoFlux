@@ -53,6 +53,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     private var pageLoaded: Boolean = false
     private var isFullScreen: Boolean = false
     private var lastInsets: Insets = Insets.NONE
+    private var isImeVisible: Boolean = false
 
     private var pendingFilePrompt: GeckoSession.PromptDelegate.FilePrompt? = null
     private var pendingFileResult: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? = null
@@ -194,7 +195,11 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                 WindowInsetsCompat.Type.systemBars() or
                 WindowInsetsCompat.Type.displayCutout()
             )
+            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            val imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime()) || imeInsets.bottom > 0
+
             lastInsets = insets
+            isImeVisible = imeVisible
             updateLayoutInsets()
             windowInsets
         }
@@ -204,13 +209,16 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         if (isFullScreen) {
             binding.geckoContainer.setPadding(0, 0, 0, 0)
         } else {
-            // Soft keyboard is handled via android:windowSoftInputMode="adjustResize" in manifest;
-            // bottom padding is zeroed to prevent double padding above virtual keyboard
+            // When IME (virtual keyboard) is visible, adjustResize handles the layout
+            // so we don't add navigation bar padding to avoid double padding above the keyboard.
+            // When IME is not visible, apply navigation bar bottom padding so 3-button navigation
+            // or gesture bar doesn't overlap the web content (e.g. YouTube / YouTube Music bottom bars).
+            val bottomPadding = if (isImeVisible) 0 else lastInsets.bottom
             binding.geckoContainer.setPadding(
                 lastInsets.left,
                 lastInsets.top,
                 lastInsets.right,
-                0
+                bottomPadding
             )
         }
     }
