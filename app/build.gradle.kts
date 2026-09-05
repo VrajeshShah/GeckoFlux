@@ -30,16 +30,28 @@ android {
 
     flavorDimensions += "app"
     productFlavors {
+        create("suite") {
+            dimension = "app"
+            applicationId = "com.geckoflux"
+            manifestPlaceholders["appName"] = "GeckoFlux"
+            manifestPlaceholders["tubeEnabled"] = "true"
+            manifestPlaceholders["musicEnabled"] = "true"
+            buildConfigField("String", "TARGET_URL", "\"https://m.youtube.com\"")
+        }
         create("youtube") {
             dimension = "app"
             applicationId = "com.geckoflux.tube"
             manifestPlaceholders["appName"] = "GeckoTube"
+            manifestPlaceholders["tubeEnabled"] = "true"
+            manifestPlaceholders["musicEnabled"] = "false"
             buildConfigField("String", "TARGET_URL", "\"https://m.youtube.com\"")
         }
         create("music") {
             dimension = "app"
             applicationId = "com.geckoflux.music"
             manifestPlaceholders["appName"] = "GeckoMusic"
+            manifestPlaceholders["tubeEnabled"] = "false"
+            manifestPlaceholders["musicEnabled"] = "true"
             buildConfigField("String", "TARGET_URL", "\"https://music.youtube.com\"")
         }
     }

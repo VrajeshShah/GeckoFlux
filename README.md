@@ -23,19 +23,25 @@ A clean, bare-metal Android web client powered by **Mozilla GeckoView** (Firefox
 
 ## Build Variants & Commands
 
-### 1. Build GeckoTube
+### 1. Build GeckoFlux Suite (YouTube + Music Shared)
+```bash
+./gradlew assembleSuiteDebug
+```
+Output: `app/build/outputs/apk/suite/debug/app-suite-debug.apk`
+
+### 2. Build GeckoTube (Standalone)
 ```bash
 ./gradlew assembleYoutubeDebug
 ```
 Output: `app/build/outputs/apk/youtube/debug/app-youtube-debug.apk`
 
-### 2. Build GeckoMusic
+### 3. Build GeckoMusic (Standalone)
 ```bash
 ./gradlew assembleMusicDebug
 ```
 Output: `app/build/outputs/apk/music/debug/app-music-debug.apk`
 
-### 3. Run Lint Checks
+### 4. Run Lint Checks
 ```bash
 ./gradlew lint
 ```

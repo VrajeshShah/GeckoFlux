@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Vinyl Record Grooves -->
+    <path
+        android:strokeColor="#FF0000"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,20 A 34,34 0 1 1 20,54 A 34,34 0 0 1 54,20" />
+
+    <!-- Inner Groove Ring -->
+    <path
+        android:strokeColor="#FF4444"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,28 A 26,26 0 1 1 28,54 A 26,26 0 0 1 54,28" />
+
+    <!-- Center Label Disc -->
+    <path
+        android:fillColor="#FF0000"
+        android:pathData="M 54,36 A 18,18 0 1 1 36,54 A 18,18 0 0 1 54,36" />
+
+    <!-- Central White Play Triangle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 49,46 L 63,54 L 49,62 Z" />
+</vector>

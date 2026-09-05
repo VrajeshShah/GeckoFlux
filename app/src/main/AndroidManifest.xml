@@ -15,18 +15,51 @@
         android:hardwareAccelerated="true"
         tools:targetApi="34">
 
+        <!-- GeckoTube Activity -->
         <activity
-            android:name=".MainActivity"
+            android:name=".TubeActivity"
+            android:enabled="${tubeEnabled}"
             android:exported="true"
+            android:label="@string/app_name_tube"
+            android:icon="@mipmap/ic_launcher_tube"
+            android:roundIcon="@mipmap/ic_launcher_tube_round"
+            android:taskAffinity="${applicationId}.tube"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
             android:resizeableActivity="true"
-            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- GeckoMusic Activity -->
+        <activity
+            android:name=".MusicActivity"
+            android:enabled="${musicEnabled}"
+            android:exported="true"
+            android:label="@string/app_name_music"
+            android:icon="@mipmap/ic_launcher_music"
+            android:roundIcon="@mipmap/ic_launcher_music_round"
+            android:taskAffinity="${applicationId}.music"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Legacy MainActivity alias (for backward compatibility) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>
