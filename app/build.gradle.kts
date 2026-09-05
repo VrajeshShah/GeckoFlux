@@ -15,7 +15,7 @@ android {
         versionName = "1.0.0"
 
         ndk {
-            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
+            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86_64"))
         }
     }
 
@@ -72,26 +72,30 @@ android {
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("KEYSTORE_FILE")
-            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+            val envPassword = System.getenv("KEYSTORE_PASSWORD")
+            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists() && !envPassword.isNullOrBlank()) {
                 storeFile = file(keystorePath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
-            } else if (rootProject.file("release.jks").exists()) {
-                storeFile = rootProject.file("release.jks")
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "geckofluxpass"
+                storePassword = envPassword
                 keyAlias = System.getenv("KEY_ALIAS") ?: "geckoflux"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "geckofluxpass"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: envPassword
+            } else if (rootProject.file("release.jks").exists() && !envPassword.isNullOrBlank()) {
+                storeFile = rootProject.file("release.jks")
+                storePassword = envPassword
+                keyAlias = System.getenv("KEY_ALIAS") ?: "geckoflux"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: envPassword
             }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists() && releaseSigning.storePassword != null) {
                 signingConfig = releaseSigning
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -115,6 +119,10 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 

@@ -2,10 +2,12 @@ package com.geckoflux
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -46,6 +48,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     protected lateinit var binding: ActivityMainBinding
     protected var geckoSession: GeckoSession? = null
     private var currentSessionState: GeckoSession.SessionState? = null
+    private var pendingSavedState: GeckoSession.SessionState? = null
     private var canGoBack: Boolean = false
     private var pageLoaded: Boolean = false
     private var isFullScreen: Boolean = false
@@ -177,6 +180,9 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        pendingFileResult?.complete(pendingFilePrompt?.dismiss())
+        pendingFileResult = null
+        pendingFilePrompt = null
         geckoSession?.let { GeckoMediaSessionManager.detachFromSession(it) }
         geckoSession?.close()
         super.onDestroy()
@@ -186,8 +192,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
             val insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or
-                WindowInsetsCompat.Type.displayCutout() or
-                WindowInsetsCompat.Type.ime()
+                WindowInsetsCompat.Type.displayCutout()
             )
             lastInsets = insets
             updateLayoutInsets()
@@ -199,11 +204,13 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         if (isFullScreen) {
             binding.geckoContainer.setPadding(0, 0, 0, 0)
         } else {
+            // Soft keyboard is handled via android:windowSoftInputMode="adjustResize" in manifest;
+            // bottom padding is zeroed to prevent double padding above virtual keyboard
             binding.geckoContainer.setPadding(
                 lastInsets.left,
                 lastInsets.top,
                 lastInsets.right,
-                lastInsets.bottom
+                0
             )
         }
     }
@@ -327,18 +334,26 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.AlertPrompt
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                if (isFinishing || isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
                 val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
-                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
-                    .setTitle(prompt.title ?: getString(R.string.app_name))
-                    .setMessage(prompt.message)
-                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                        dialog.dismiss()
-                        geckoResult.complete(prompt.dismiss())
-                    }
-                    .setOnCancelListener {
-                        geckoResult.complete(prompt.dismiss())
-                    }
-                    .show()
+                try {
+                    androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                        .setTitle(prompt.title ?: getString(R.string.app_name))
+                        .setMessage(prompt.message)
+                        .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                            dialog.dismiss()
+                            geckoResult.complete(prompt.dismiss())
+                        }
+                        .setOnCancelListener {
+                            geckoResult.complete(prompt.dismiss())
+                        }
+                        .show()
+                } catch (e: Exception) {
+                    Log.w("BaseGeckoActivity", "Failed to show alert prompt dialog", e)
+                    geckoResult.complete(prompt.dismiss())
+                }
                 return geckoResult
             }
 
@@ -346,22 +361,30 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.ButtonPrompt
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                if (isFinishing || isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
                 val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
-                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
-                    .setTitle(prompt.title ?: getString(R.string.app_name))
-                    .setMessage(prompt.message)
-                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                        dialog.dismiss()
-                        geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.POSITIVE))
-                    }
-                    .setNegativeButton(android.R.string.cancel) { dialog, _ ->
-                        dialog.dismiss()
-                        geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.NEGATIVE))
-                    }
-                    .setOnCancelListener {
-                        geckoResult.complete(prompt.dismiss())
-                    }
-                    .show()
+                try {
+                    androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                        .setTitle(prompt.title ?: getString(R.string.app_name))
+                        .setMessage(prompt.message)
+                        .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                            dialog.dismiss()
+                            geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.POSITIVE))
+                        }
+                        .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                            dialog.dismiss()
+                            geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.NEGATIVE))
+                        }
+                        .setOnCancelListener {
+                            geckoResult.complete(prompt.dismiss())
+                        }
+                        .show()
+                } catch (e: Exception) {
+                    Log.w("BaseGeckoActivity", "Failed to show button prompt dialog", e)
+                    geckoResult.complete(prompt.dismiss())
+                }
                 return geckoResult
             }
 
@@ -369,6 +392,9 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.TextPrompt
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                if (isFinishing || isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
                 val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
                 val input = android.widget.EditText(this@BaseGeckoActivity).apply {
                     setText(prompt.defaultValue)
@@ -378,22 +404,27 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                     setPadding(padding, 0, padding, 0)
                     addView(input)
                 }
-                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
-                    .setTitle(prompt.title ?: getString(R.string.app_name))
-                    .setMessage(prompt.message)
-                    .setView(container)
-                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                        dialog.dismiss()
-                        geckoResult.complete(prompt.confirm(input.text.toString()))
-                    }
-                    .setNegativeButton(android.R.string.cancel) { dialog, _ ->
-                        dialog.dismiss()
-                        geckoResult.complete(prompt.dismiss())
-                    }
-                    .setOnCancelListener {
-                        geckoResult.complete(prompt.dismiss())
-                    }
-                    .show()
+                try {
+                    androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                        .setTitle(prompt.title ?: getString(R.string.app_name))
+                        .setMessage(prompt.message)
+                        .setView(container)
+                        .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                            dialog.dismiss()
+                            geckoResult.complete(prompt.confirm(input.text.toString()))
+                        }
+                        .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                            dialog.dismiss()
+                            geckoResult.complete(prompt.dismiss())
+                        }
+                        .setOnCancelListener {
+                            geckoResult.complete(prompt.dismiss())
+                        }
+                        .show()
+                } catch (e: Exception) {
+                    Log.w("BaseGeckoActivity", "Failed to show text prompt dialog", e)
+                    geckoResult.complete(prompt.dismiss())
+                }
                 return geckoResult
             }
 
@@ -433,7 +464,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         binding.geckoView.setSession(session)
         com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, applicationContext, appType)
 
-        // Restore prior browsing state if activity was recreated from process death
+        // Store prior browsing state if activity was recreated from process death
         val savedState: GeckoSession.SessionState? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             savedInstanceState?.getParcelable(KEY_SESSION_STATE, GeckoSession.SessionState::class.java)
         } else {
@@ -442,8 +473,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         }
         if (savedState != null) {
             currentSessionState = savedState
-            session.restoreState(savedState)
-            pageLoaded = true
+            pendingSavedState = savedState
         }
     }
 
@@ -468,6 +498,13 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     protected fun loadTargetUrl() {
         if (pageLoaded) return
         pageLoaded = true
+
+        val pending = pendingSavedState
+        if (pending != null) {
+            pendingSavedState = null
+            geckoSession?.restoreState(pending)
+            return
+        }
 
         val targetUrl = intent?.dataString ?: defaultTargetUrl
         loadUriWithPreferences(targetUrl)
@@ -537,7 +574,12 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
                     val deltaX = ev.rawX - fsDownX
                     val deltaY = ev.rawY - fsDownY
                     val duration = System.currentTimeMillis() - fsDownTime
-                    if (deltaY > 120 && Math.abs(deltaY) > Math.abs(deltaX) * 1.5 && duration < 500) {
+                    val minSwipePx = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP,
+                        100f,
+                        resources.displayMetrics
+                    )
+                    if (deltaY > minSwipePx && Math.abs(deltaY) > Math.abs(deltaX) * 1.5 && duration < 500) {
                         geckoSession?.exitFullScreen()
                         return true
                     }
@@ -555,7 +597,15 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         if (isActivityResolvable(intent)) {
             startActivity(intent)
         } else {
-            openExternalBrowser(uri)
+            val companionIntent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                setPackage("com.geckoflux.tube")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (isActivityResolvable(companionIntent)) {
+                startActivity(companionIntent)
+            } else {
+                openExternalBrowser(uri)
+            }
         }
     }
 
@@ -567,7 +617,15 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         if (isActivityResolvable(intent)) {
             startActivity(intent)
         } else {
-            openExternalBrowser(uri)
+            val companionIntent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                setPackage("com.geckoflux.music")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (isActivityResolvable(companionIntent)) {
+                startActivity(companionIntent)
+            } else {
+                openExternalBrowser(uri)
+            }
         }
     }
 

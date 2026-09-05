@@ -95,28 +95,45 @@ object GeckoRuntimeManager {
     }
 
     private var isNetworkMonitoring = false
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
     private fun registerNetworkCallback(context: Context) {
         if (isNetworkMonitoring) return
-        isNetworkMonitoring = true
         val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
         val request = android.net.NetworkRequest.Builder()
             .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
-        try {
-            cm.registerNetworkCallback(request, object : android.net.ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: android.net.Network) {
-                    if (currentState == SetupState.ERROR) {
-                        Log.d(TAG, "Network connectivity restored. Retrying uBlock download in background...")
-                        mainHandler.post {
-                            retry(context.applicationContext)
-                        }
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                if (currentState == SetupState.ERROR) {
+                    Log.d(TAG, "Network connectivity restored. Retrying uBlock download in background...")
+                    mainHandler.post {
+                        retry(context.applicationContext)
                     }
                 }
-            })
+            }
+        }
+        try {
+            cm.registerNetworkCallback(request, callback)
+            networkCallback = callback
+            isNetworkMonitoring = true
         } catch (e: Exception) {
             Log.w(TAG, "Could not register network callback for background retry", e)
         }
+    }
+
+    fun unregisterNetworkCallback(context: Context) {
+        if (!isNetworkMonitoring) return
+        val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
+        networkCallback?.let {
+            try {
+                cm.unregisterNetworkCallback(it)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not unregister network callback", e)
+            }
+        }
+        networkCallback = null
+        isNetworkMonitoring = false
     }
 
     /**
@@ -140,11 +157,12 @@ object GeckoRuntimeManager {
         }
 
         val rt = getRuntime(context)
+        if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
+            DarkThemeManager.ensureInstalled(rt)
+        }
+
         if (!FeatureManager.isEnabled(Feature.UBLOCK_ORIGIN)) {
             currentState = SetupState.READY
-            if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
-                DarkThemeManager.ensureInstalled(rt)
-            }
             notifyReady()
             return
         }
@@ -190,6 +208,7 @@ object GeckoRuntimeManager {
 
             override fun onReady() {
                 currentState = SetupState.READY
+                unregisterNetworkCallback(context)
                 val rt = getRuntime(context)
                 if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
                     DarkThemeManager.ensureInstalled(rt)

@@ -21,4 +21,26 @@ class UblockManagerTest {
         assertEquals("addons.mozilla.org", url.host)
         assertTrue("URL path should point to latest ublock-origin .xpi", url.path.endsWith("/ublock-origin/latest.xpi"))
     }
+
+    @Test
+    fun testValidXpiArchiveHeaderValidation() {
+        val tempFile = java.io.File.createTempFile("test_valid", ".xpi")
+        try {
+            tempFile.writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 0x00, 0x00))
+            assertTrue(UblockManager.isValidXpiArchive(tempFile))
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun testCorruptedXpiArchiveHeaderValidation() {
+        val tempFile = java.io.File.createTempFile("test_corrupted", ".xpi")
+        try {
+            tempFile.writeBytes(byteArrayOf(0x00, 0x00, 0x00, 0x00))
+            org.junit.Assert.assertFalse(UblockManager.isValidXpiArchive(tempFile))
+        } finally {
+            tempFile.delete()
+        }
+    }
 }

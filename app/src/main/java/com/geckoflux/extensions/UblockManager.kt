@@ -25,9 +25,10 @@ object UblockManager {
     const val EXTENSION_ID = "uBlock0@raymondhill.net"
     private const val AMO_DOWNLOAD_URL =
         "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+    private const val MAX_XPI_SIZE = 50 * 1024 * 1024L // 50 MB DoS prevention limit
 
     private val executor = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     interface InstallListener {
         /**
@@ -224,24 +225,30 @@ object UblockManager {
         var redirects = 0
         val maxRedirects = 5
 
-        while (redirects < maxRedirects) {
+        while (redirects <= maxRedirects) {
             if (!currentUrl.startsWith("https://")) {
                 throw SecurityException("Refusing to follow insecure redirect: $currentUrl")
             }
             val url = URL(currentUrl)
-            connection = url.openConnection() as HttpURLConnection
-            connection.instanceFollowRedirects = false
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            connection.setRequestProperty(
+            val conn = url.openConnection() as HttpURLConnection
+            connection = conn
+            conn.instanceFollowRedirects = false
+            conn.connectTimeout = 15000
+            conn.readTimeout = 30000
+            conn.setRequestProperty(
                 "User-Agent",
                 "Mozilla/5.0 (Android; Mobile; rv:154.0) Gecko/154.0 Firefox/154.0"
             )
 
-            val status = connection.responseCode
+            val status = conn.responseCode
             if (status in 300..399) {
-                val redirectLocation = connection.getHeaderField("Location")
-                connection.disconnect()
+                redirects++
+                if (redirects > maxRedirects) {
+                    conn.disconnect()
+                    throw java.io.IOException("Too many redirects ($redirects) while downloading extension")
+                }
+                val redirectLocation = conn.getHeaderField("Location")
+                conn.disconnect()
                 if (redirectLocation != null) {
                     val resolvedUrl = if (redirectLocation.startsWith("http://") || redirectLocation.startsWith("https://")) {
                         redirectLocation
@@ -252,8 +259,9 @@ object UblockManager {
                         throw SecurityException("Insecure redirect location: $resolvedUrl")
                     }
                     currentUrl = resolvedUrl
-                    redirects++
                     continue
+                } else {
+                    throw java.io.IOException("Redirect response $status missing Location header")
                 }
             }
             break
@@ -279,8 +287,11 @@ object UblockManager {
             var read: Int
 
             while (input.read(buffer).also { read = it } != -1) {
-                output.write(buffer, 0, read)
                 bytesReadTotal += read
+                if (bytesReadTotal > MAX_XPI_SIZE) {
+                    throw java.io.IOException("Download exceeded maximum allowed size ($MAX_XPI_SIZE bytes)")
+                }
+                output.write(buffer, 0, read)
 
                 val percent = if (totalBytes > 0) {
                     ((bytesReadTotal * 100) / totalBytes).toInt()
@@ -300,6 +311,32 @@ object UblockManager {
             try { input?.close() } catch (_: Exception) {}
             try { output?.close() } catch (_: Exception) {}
             conn.disconnect()
+        }
+
+        // Validate that the downloaded file is a valid ZIP/XPI archive (magic bytes PK\x03\x04)
+        if (!isValidXpiArchive(destinationFile)) {
+            destinationFile.delete()
+            throw SecurityException("Downloaded extension file is corrupted or not a valid XPI/ZIP archive")
+        }
+    }
+
+    /**
+     * Verifies the magic bytes of a ZIP/XPI archive (0x50, 0x4B, 0x03, 0x04).
+     */
+    fun isValidXpiArchive(file: File): Boolean {
+        if (!file.exists() || file.length() < 4) return false
+        return try {
+            java.io.FileInputStream(file).use { fis ->
+                val header = ByteArray(4)
+                val read = fis.read(header)
+                read == 4 &&
+                    header[0] == 0x50.toByte() &&
+                    header[1] == 0x4B.toByte() &&
+                    header[2] == 0x03.toByte() &&
+                    header[3] == 0x04.toByte()
+            }
+        } catch (_: Exception) {
+            false
         }
     }
 
