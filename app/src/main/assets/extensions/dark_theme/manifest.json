@@ -1,22 +1,27 @@
 {
   "manifest_version": 2,
-  "name": "GeckoFlux Dark Theme",
-  "version": "1.0",
-  "description": "Enforces dark theme preference for YouTube",
+  "name": "GeckoFlux Web Enhancer",
+  "version": "2.0",
+  "description": "Enforces dark theme and background playback for YouTube and YouTube Music",
   "browser_specific_settings": {
     "gecko": {
-      "id": "darktheme@geckoflux.com"
+      "id": "enhancer@geckoflux.com"
     }
   },
   "content_scripts": [
     {
       "matches": [
-        "*://*.youtube.com/*"
+        "*://*.youtube.com/*",
+        "*://youtube.com/*",
+        "*://*.youtu.be/*",
+        "*://youtu.be/*"
       ],
       "js": [
-        "dark.js"
+        "dark.js",
+        "background_play.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ]
 }

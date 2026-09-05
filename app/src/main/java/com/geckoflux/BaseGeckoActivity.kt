@@ -20,6 +20,7 @@ import com.geckoflux.databinding.ActivityMainBinding
 import com.geckoflux.extensions.UblockManager
 import com.geckoflux.features.Feature
 import com.geckoflux.features.FeatureManager
+import com.geckoflux.media.GeckoMediaSessionManager
 import com.geckoflux.navigation.AppType
 import com.geckoflux.navigation.NavigationRouter
 import com.geckoflux.navigation.RouteAction
@@ -119,6 +120,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         setupBackNavigation()
         setupOverlayActions()
         initGeckoView()
+        requestNotificationPermissionIfNeeded()
         startAppFlow()
     }
 
@@ -136,6 +138,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        geckoSession?.let { GeckoMediaSessionManager.detachFromSession(it) }
         geckoSession?.close()
         super.onDestroy()
     }
@@ -247,8 +250,25 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
             }
         }
 
+        session.permissionDelegate = object : GeckoSession.PermissionDelegate {
+            override fun onContentPermissionRequest(
+                session: GeckoSession,
+                perm: GeckoSession.PermissionDelegate.ContentPermission
+            ): GeckoResult<Int>? {
+                return if (perm.permission == GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_AUDIBLE ||
+                    perm.permission == GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE ||
+                    perm.permission == GeckoSession.PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS
+                ) {
+                    GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+                } else {
+                    GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_PROMPT)
+                }
+            }
+        }
+
         session.open(runtime)
         binding.geckoView.setSession(session)
+        com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, this)
     }
 
     private fun startAppFlow() {
@@ -400,6 +420,19 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
             resolveInfo != null && resolveInfo.activityInfo != null && resolveInfo.activityInfo.isEnabled
         } catch (e: Exception) {
             false
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    101
+                )
+            }
         }
     }
 }
