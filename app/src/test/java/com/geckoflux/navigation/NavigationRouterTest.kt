@@ -138,7 +138,32 @@ class NavigationRouterTest {
         )
         assertEquals(
             RouteAction.LOAD_IN_SESSION,
+            NavigationRouter.resolve(AppType.MUSIC, "about:neterror")
+        )
+    }
+
+    @Test
+    fun testUnsafeSchemesOpenExternal() {
+        assertEquals(
+            RouteAction.OPEN_EXTERNAL_BROWSER,
             NavigationRouter.resolve(AppType.MUSIC, "javascript:void(0);")
+        )
+        assertEquals(
+            RouteAction.OPEN_EXTERNAL_BROWSER,
+            NavigationRouter.resolve(AppType.TUBE, "data:text/html,<h1>Phishing</h1>")
+        )
+    }
+
+    @Test
+    fun testHostSpoofingWithCredentialsPrevented() {
+        val spoofedUrl = "https://youtube.com:password@phishing-attack.com/login"
+        assertEquals(
+            RouteAction.OPEN_EXTERNAL_BROWSER,
+            NavigationRouter.resolve(AppType.TUBE, spoofedUrl)
+        )
+        assertEquals(
+            RouteAction.OPEN_EXTERNAL_BROWSER,
+            NavigationRouter.resolve(AppType.MUSIC, spoofedUrl)
         )
     }
 

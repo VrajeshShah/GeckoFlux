@@ -57,6 +57,7 @@ object GeckoMediaSessionManager {
      * Attaches the MediaSession.Delegate to a GeckoSession with its originating app type.
      */
     fun attachToSession(session: GeckoSession, context: Context, appType: AppType = AppType.TUBE) {
+        val appContext = context.applicationContext
         activeSession = session
         currentAppType = appType
 
@@ -65,7 +66,7 @@ object GeckoMediaSessionManager {
                 Log.d(TAG, "MediaSession onActivated")
                 activeMediaSession = mediaSession
                 currentAppType = appType
-                MediaPlaybackService.start(context)
+                MediaPlaybackService.start(appContext)
             }
 
             override fun onDeactivated(session: GeckoSession, mediaSession: MediaSession) {
@@ -100,7 +101,7 @@ object GeckoMediaSessionManager {
                 activeMediaSession = mediaSession
                 currentAppType = appType
                 isPlaying = true
-                MediaPlaybackService.start(context)
+                MediaPlaybackService.start(appContext)
                 serviceCallback?.onPlaybackStateChanged(true)
             }
 

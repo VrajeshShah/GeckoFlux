@@ -11,4 +11,5 @@
     <string name="setup_error_network">Unable to download uBlock Origin. Please check your internet connection.</string>
     <string name="btn_retry">Retry</string>
     <string name="btn_continue_without_adblock">Continue without Adblock</string>
+    <string name="zero_percent">0%</string>
 </resources>

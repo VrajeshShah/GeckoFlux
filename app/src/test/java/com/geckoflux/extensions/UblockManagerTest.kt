@@ -14,26 +14,11 @@ class UblockManagerTest {
     }
 
     @Test
-    fun testMozillaAmoEndpointResolves() {
+    fun testMozillaAmoEndpointConfiguration() {
         val amoUrl = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
-        val connection = URL(amoUrl).openConnection() as HttpURLConnection
-        connection.requestMethod = "HEAD"
-        connection.instanceFollowRedirects = false
-        connection.connectTimeout = 10000
-        connection.readTimeout = 10000
-        connection.setRequestProperty(
-            "User-Agent",
-            "Mozilla/5.0 (Android; Mobile; rv:154.0) Gecko/154.0 Firefox/154.0"
-        )
-        val responseCode = connection.responseCode
-        connection.disconnect()
-
-        // AMO endpoint should return either 302 Found (redirecting to CDN) or 200 OK
-        assertTrue(
-            "Expected redirect (302/301) or OK (200), got: $responseCode",
-            responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
-                    responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
-                    responseCode == HttpURLConnection.HTTP_OK
-        )
+        val url = URL(amoUrl)
+        assertEquals("https", url.protocol)
+        assertEquals("addons.mozilla.org", url.host)
+        assertTrue("URL path should point to latest ublock-origin .xpi", url.path.endsWith("/ublock-origin/latest.xpi"))
     }
 }

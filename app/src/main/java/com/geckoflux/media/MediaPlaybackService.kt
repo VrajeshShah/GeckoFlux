@@ -44,10 +44,18 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
             val intent = Intent(context, MediaPlaybackService::class.java).apply {
                 action = ACTION_START
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && e is android.app.ForegroundServiceStartNotAllowedException) {
+                    Log.w(TAG, "Foreground service start not allowed from background", e)
+                } else {
+                    Log.e(TAG, "Failed to start MediaPlaybackService", e)
+                }
             }
         }
 
@@ -55,7 +63,11 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
             val intent = Intent(context, MediaPlaybackService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to stop MediaPlaybackService", e)
+            }
         }
     }
 
@@ -74,6 +86,7 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
         setupAndroidMediaSession()
+        startForegroundWithNotification()
         GeckoMediaSessionManager.setServiceCallback(this)
     }
 
@@ -107,6 +120,12 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "Task removed from recents. Tearing down service.")
+        teardownAndStop()
+    }
+
     override fun onDestroy() {
         GeckoMediaSessionManager.setServiceCallback(null)
         teardownAndStop()
@@ -114,17 +133,15 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Media Playback",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Background media playback and controls"
-                setShowBadge(false)
-            }
-            notificationManager?.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Media Playback",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Background media playback and controls"
+            setShowBadge(false)
         }
+        notificationManager?.createNotificationChannel(channel)
     }
 
     private fun setupAndroidMediaSession() {
@@ -191,7 +208,7 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
             }
             if (wakeLock?.isHeld != true) {
                 Log.d(TAG, "Acquiring dynamic PARTIAL_WAKE_LOCK")
-                wakeLock?.acquire(30 * 60 * 1000L) // 30 min safety timeout
+                wakeLock?.acquire()
             }
         } else {
             if (wakeLock?.isHeld == true) {
@@ -357,12 +374,7 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         updateWakeLock(false)
         isPlaying = false
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
 
         androidMediaSession?.isActive = false
         androidMediaSession?.release()

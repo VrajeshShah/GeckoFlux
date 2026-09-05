@@ -94,11 +94,37 @@ object GeckoRuntimeManager {
         listeners.remove(listener)
     }
 
+    private var isNetworkMonitoring = false
+
+    private fun registerNetworkCallback(context: Context) {
+        if (isNetworkMonitoring) return
+        isNetworkMonitoring = true
+        val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
+        val request = android.net.NetworkRequest.Builder()
+            .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        try {
+            cm.registerNetworkCallback(request, object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    if (currentState == SetupState.ERROR) {
+                        Log.d(TAG, "Network connectivity restored. Retrying uBlock download in background...")
+                        mainHandler.post {
+                            retry(context.applicationContext)
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register network callback for background retry", e)
+        }
+    }
+
     /**
      * Initializes extensions for the shared runtime.
      * Ensures uBlock Origin is downloaded & installed once, and Dark Theme is injected.
      */
     fun ensureExtensions(context: Context, listener: UblockManager.InstallListener? = null) {
+        registerNetworkCallback(context)
         listener?.let { registerListener(it) }
 
         if (currentState == SetupState.READY) {

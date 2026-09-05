@@ -44,6 +44,9 @@
   );
 
   // 3. User activity ping: Prevents YouTube's idle timeout ("Are you still watching?")
+  // Only runs when media playback is actively ongoing to prevent battery drain.
+  var activityTimeout = null;
+
   function pressActivityKey() {
     try {
       var event = new KeyboardEvent('keydown', {
@@ -56,13 +59,52 @@
     } catch (e) {}
   }
 
-  function activityLoop() {
+  function isAnyVideoPlaying() {
+    try {
+      var doc = targetDoc || document;
+      var videos = doc.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        if (!v.paused && !v.ended && v.readyState > 2) {
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function scheduleNextActivityPing() {
+    if (activityTimeout) {
+      clearTimeout(activityTimeout);
+      activityTimeout = null;
+    }
+    if (!isAnyVideoPlaying()) {
+      return;
+    }
     var delay = 60000 + Math.floor(Math.random() * 10000 - 5000); // 60s +/- 5s
-    window.setTimeout(function() {
-      pressActivityKey();
-      activityLoop();
+    activityTimeout = window.setTimeout(function() {
+      if (isAnyVideoPlaying()) {
+        pressActivityKey();
+        scheduleNextActivityPing();
+      }
     }, delay);
   }
 
-  activityLoop();
+  window.addEventListener('play', function() {
+    scheduleNextActivityPing();
+  }, true);
+
+  window.addEventListener('pause', function() {
+    if (!isAnyVideoPlaying() && activityTimeout) {
+      clearTimeout(activityTimeout);
+      activityTimeout = null;
+    }
+  }, true);
+
+  window.addEventListener('ended', function() {
+    if (!isAnyVideoPlaying() && activityTimeout) {
+      clearTimeout(activityTimeout);
+      activityTimeout = null;
+    }
+  }, true);
 })();

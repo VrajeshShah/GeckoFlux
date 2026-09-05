@@ -56,19 +56,43 @@ android {
         }
     }
 
+    val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            val abi = output?.getFilter("ABI")
+            val abiCode = abiCodes[abi] ?: 0
+            if (output != null) {
+                output.versionCodeOverride = 1000000 * abiCode + variant.versionCode
+            }
+        }
+    }
+
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("release.jks")
-            storePassword = "geckofluxpass"
-            keyAlias = "geckoflux"
-            keyPassword = "geckofluxpass"
+            val keystorePath = System.getenv("KEYSTORE_FILE")
+            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else if (rootProject.file("release.jks").exists()) {
+                storeFile = rootProject.file("release.jks")
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "geckofluxpass"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "geckoflux"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "geckofluxpass"
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+                signingConfig = releaseSigning
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

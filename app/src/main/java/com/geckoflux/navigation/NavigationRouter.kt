@@ -69,13 +69,17 @@ object NavigationRouter {
 
         val trimmed = uriString.trim()
 
-        // Non-http(s) browser schemes stay in session (e.g., about:blank, javascript:)
+        // Safe internal browser schemes stay in session (e.g., about:blank, about:neterror)
         val scheme = extractScheme(trimmed)
-        if (scheme == "about" || scheme == "javascript" || scheme == "data") {
-            return RouteAction.LOAD_IN_SESSION
+        if (scheme == "about") {
+            return if (trimmed == "about:blank" || trimmed == "about:neterror") {
+                RouteAction.LOAD_IN_SESSION
+            } else {
+                RouteAction.OPEN_EXTERNAL_BROWSER
+            }
         }
 
-        // Custom android schemes (intent:, market:, mailto:, tel:) go to external handler
+        // Custom android schemes (intent:, market:, mailto:, tel:) and unsafe schemes (javascript:, data:) go to external handler
         if (scheme != "http" && scheme != "https") {
             return RouteAction.OPEN_EXTERNAL_BROWSER
         }
@@ -123,12 +127,17 @@ object NavigationRouter {
     private fun extractHost(url: String): String? {
         return try {
             val uri = URI(url)
+            // Strictly reject userinfo / credentials in authority to prevent spoofing
+            if (uri.userInfo != null || uri.rawUserInfo != null) {
+                return null
+            }
             uri.host?.lowercase()
         } catch (e: Exception) {
             // Fallback manual host extractor
             val withoutScheme = url.substringAfter("://", "")
             if (withoutScheme.isEmpty()) return null
             val authority = withoutScheme.substringBefore('/').substringBefore('?').substringBefore('#')
+            if (authority.contains('@')) return null
             authority.substringBefore(':').lowercase().ifEmpty { null }
         }
     }

@@ -107,14 +107,25 @@ object UblockManager {
                 origins: Array<out String>,
                 technicalAndInteractionData: Array<out String>
             ): GeckoResult<WebExtension.PermissionPromptResponse>? {
-                Log.d(TAG, "Auto-granting permissions for extension: ${extension.id}")
-                return GeckoResult.fromValue(
-                    WebExtension.PermissionPromptResponse(
-                        true, // isPermissionsGranted
-                        true, // isPrivateModeGranted
-                        false // isTechnicalAndInteractionDataGranted
+                if (extension.id == EXTENSION_ID) {
+                    Log.d(TAG, "Auto-granting permissions for extension: ${extension.id}")
+                    return GeckoResult.fromValue(
+                        WebExtension.PermissionPromptResponse(
+                            true, // isPermissionsGranted
+                            true, // isPrivateModeGranted
+                            false // isTechnicalAndInteractionDataGranted
+                        )
                     )
-                )
+                } else {
+                    Log.w(TAG, "Denying permissions for untrusted extension: ${extension.id}")
+                    return GeckoResult.fromValue(
+                        WebExtension.PermissionPromptResponse(
+                            false,
+                            false,
+                            false
+                        )
+                    )
+                }
             }
 
             override fun onUpdatePrompt(
@@ -123,7 +134,12 @@ object UblockManager {
                 origins: Array<out String>,
                 technicalAndInteractionData: Array<out String>
             ): GeckoResult<AllowOrDeny>? {
-                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                return if (extension.id == EXTENSION_ID) {
+                    GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                } else {
+                    Log.w(TAG, "Denying update prompt for untrusted extension: ${extension.id}")
+                    GeckoResult.fromValue(AllowOrDeny.DENY)
+                }
             }
 
             override fun onOptionalPrompt(
@@ -132,7 +148,12 @@ object UblockManager {
                 origins: Array<out String>,
                 technicalAndInteractionData: Array<out String>
             ): GeckoResult<AllowOrDeny>? {
-                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                return if (extension.id == EXTENSION_ID) {
+                    GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                } else {
+                    Log.w(TAG, "Denying optional prompt for untrusted extension: ${extension.id}")
+                    GeckoResult.fromValue(AllowOrDeny.DENY)
+                }
             }
         }
     }
@@ -159,25 +180,35 @@ object UblockManager {
         listener: InstallListener
     ) {
         executor.execute {
+            var tempFile: File? = null
             try {
                 val extensionsDir = File(appContext.filesDir, "extensions").apply { mkdirs() }
                 val targetFile = File(extensionsDir, "ublock_origin.xpi")
-                val tempFile = File(extensionsDir, "ublock_origin.xpi.tmp")
+                val tmp = File(extensionsDir, "ublock_origin.xpi.tmp")
+                tempFile = tmp
 
-                downloadXpiWithProgress(tempFile, listener)
+                if (tmp.exists()) {
+                    tmp.delete()
+                }
+
+                downloadXpiWithProgress(tmp, listener)
 
                 if (targetFile.exists()) {
                     targetFile.delete()
                 }
-                if (!tempFile.renameTo(targetFile)) {
+                if (!tmp.renameTo(targetFile)) {
                     throw IllegalStateException("Failed to move temporary XPI to destination.")
                 }
+                tempFile = null
 
                 mainHandler.post {
                     listener.onInstalling()
                     installIntoGeckoView(runtime, targetFile, listener)
                 }
             } catch (t: Throwable) {
+                tempFile?.let {
+                    if (it.exists()) it.delete()
+                }
                 Log.e(TAG, "Download/installation failed", t)
                 mainHandler.post { listener.onError(t) }
             }
@@ -194,9 +225,12 @@ object UblockManager {
         val maxRedirects = 5
 
         while (redirects < maxRedirects) {
+            if (!currentUrl.startsWith("https://")) {
+                throw SecurityException("Refusing to follow insecure redirect: $currentUrl")
+            }
             val url = URL(currentUrl)
             connection = url.openConnection() as HttpURLConnection
-            connection.instanceFollowRedirects = true
+            connection.instanceFollowRedirects = false
             connection.connectTimeout = 15000
             connection.readTimeout = 30000
             connection.setRequestProperty(
@@ -209,7 +243,15 @@ object UblockManager {
                 val redirectLocation = connection.getHeaderField("Location")
                 connection.disconnect()
                 if (redirectLocation != null) {
-                    currentUrl = redirectLocation
+                    val resolvedUrl = if (redirectLocation.startsWith("http://") || redirectLocation.startsWith("https://")) {
+                        redirectLocation
+                    } else {
+                        URL(URL(currentUrl), redirectLocation).toString()
+                    }
+                    if (!resolvedUrl.startsWith("https://")) {
+                        throw SecurityException("Insecure redirect location: $resolvedUrl")
+                    }
+                    currentUrl = resolvedUrl
                     redirects++
                     continue
                 }

@@ -39,12 +39,46 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     abstract val defaultTargetUrl: String
     open val enableSwipeDownExitFullscreen: Boolean = false
 
+    companion object {
+        private const val KEY_SESSION_STATE = "gecko_session_state"
+    }
+
     protected lateinit var binding: ActivityMainBinding
     protected var geckoSession: GeckoSession? = null
+    private var currentSessionState: GeckoSession.SessionState? = null
     private var canGoBack: Boolean = false
     private var pageLoaded: Boolean = false
     private var isFullScreen: Boolean = false
     private var lastInsets: Insets = Insets.NONE
+
+    private var pendingFilePrompt: GeckoSession.PromptDelegate.FilePrompt? = null
+    private var pendingFileResult: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? = null
+
+    private val filePickerLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val prompt = pendingFilePrompt
+        val geckoResult = pendingFileResult
+        pendingFilePrompt = null
+        pendingFileResult = null
+
+        if (prompt != null && geckoResult != null) {
+            val data = result.data
+            if (result.resultCode == RESULT_OK && data != null) {
+                val clipData = data.clipData
+                if (clipData != null && clipData.itemCount > 0) {
+                    val uris = Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
+                    geckoResult.complete(prompt.confirm(this, uris))
+                } else if (data.data != null) {
+                    geckoResult.complete(prompt.confirm(this, data.data!!))
+                } else {
+                    geckoResult.complete(prompt.dismiss())
+                }
+            } else {
+                geckoResult.complete(prompt.dismiss())
+            }
+        }
+    }
 
     private val ublockListener = object : UblockManager.InstallListener {
         override fun onDownloadStarted() {
@@ -95,11 +129,9 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         }
 
         override fun onError(error: Throwable) {
-            binding.setupOverlay.visibility = View.VISIBLE
-            binding.setupProgressBar.visibility = View.GONE
-            binding.setupProgressDetail.visibility = View.GONE
-            binding.setupErrorSection.visibility = View.VISIBLE
-            binding.setupErrorMsg.text = getString(R.string.setup_error_network)
+            // Non-blocking offline fallback: dismiss overlay, proceed to load target URL and retry later
+            binding.setupOverlay.visibility = View.GONE
+            loadTargetUrl()
         }
     }
 
@@ -119,9 +151,16 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         setupWindowInsets()
         setupBackNavigation()
         setupOverlayActions()
-        initGeckoView()
+        initGeckoView(savedInstanceState)
         requestNotificationPermissionIfNeeded()
         startAppFlow()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        currentSessionState?.let {
+            outState.putParcelable(KEY_SESSION_STATE, it)
+        }
     }
 
     override fun onStart() {
@@ -194,7 +233,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
         }
     }
 
-    private fun initGeckoView() {
+    private fun initGeckoView(savedInstanceState: Bundle?) {
         val runtime = GeckoRuntimeManager.getRuntime(this)
 
         val sessionSettings = GeckoSessionSettings.Builder()
@@ -211,6 +250,13 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
 
             override fun onPageStop(session: GeckoSession, success: Boolean) {
                 binding.loadingProgress.visibility = View.GONE
+            }
+
+            override fun onSessionStateChange(
+                session: GeckoSession,
+                sessionState: GeckoSession.SessionState
+            ) {
+                currentSessionState = sessionState
             }
         }
 
@@ -248,6 +294,16 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
             override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
                 handleFullScreen(fullScreen)
             }
+
+            override fun onCrash(session: GeckoSession) {
+                Log.w("BaseGeckoActivity", "GeckoSession content process crashed, recovering...")
+                session.reload()
+            }
+
+            override fun onKill(session: GeckoSession) {
+                Log.w("BaseGeckoActivity", "GeckoSession content process killed, recovering...")
+                session.reload()
+            }
         }
 
         session.permissionDelegate = object : GeckoSession.PermissionDelegate {
@@ -266,9 +322,129 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
             }
         }
 
+        session.promptDelegate = object : GeckoSession.PromptDelegate {
+            override fun onAlertPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.AlertPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                    .setTitle(prompt.title ?: getString(R.string.app_name))
+                    .setMessage(prompt.message)
+                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                        dialog.dismiss()
+                        geckoResult.complete(prompt.dismiss())
+                    }
+                    .setOnCancelListener {
+                        geckoResult.complete(prompt.dismiss())
+                    }
+                    .show()
+                return geckoResult
+            }
+
+            override fun onButtonPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.ButtonPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                    .setTitle(prompt.title ?: getString(R.string.app_name))
+                    .setMessage(prompt.message)
+                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                        dialog.dismiss()
+                        geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.POSITIVE))
+                    }
+                    .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                        dialog.dismiss()
+                        geckoResult.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.NEGATIVE))
+                    }
+                    .setOnCancelListener {
+                        geckoResult.complete(prompt.dismiss())
+                    }
+                    .show()
+                return geckoResult
+            }
+
+            override fun onTextPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.TextPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                val input = android.widget.EditText(this@BaseGeckoActivity).apply {
+                    setText(prompt.defaultValue)
+                }
+                val container = android.widget.FrameLayout(this@BaseGeckoActivity).apply {
+                    val padding = (16 * resources.displayMetrics.density).toInt()
+                    setPadding(padding, 0, padding, 0)
+                    addView(input)
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this@BaseGeckoActivity)
+                    .setTitle(prompt.title ?: getString(R.string.app_name))
+                    .setMessage(prompt.message)
+                    .setView(container)
+                    .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                        dialog.dismiss()
+                        geckoResult.complete(prompt.confirm(input.text.toString()))
+                    }
+                    .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                        dialog.dismiss()
+                        geckoResult.complete(prompt.dismiss())
+                    }
+                    .setOnCancelListener {
+                        geckoResult.complete(prompt.dismiss())
+                    }
+                    .show()
+                return geckoResult
+            }
+
+            override fun onFilePrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.FilePrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                pendingFilePrompt = prompt
+                val geckoResult = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                pendingFileResult = geckoResult
+
+                val mimes = prompt.mimeTypes
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    if (!mimes.isNullOrEmpty()) {
+                        type = if (mimes.size == 1) mimes[0] else "*/*"
+                        if (mimes.size > 1) {
+                            putExtra(Intent.EXTRA_MIME_TYPES, mimes)
+                        }
+                    } else {
+                        type = "*/*"
+                    }
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+
+                try {
+                    filePickerLauncher.launch(Intent.createChooser(intent, "Select File"))
+                } catch (e: Exception) {
+                    Log.e("BaseGeckoActivity", "Failed to launch file picker", e)
+                    geckoResult.complete(prompt.dismiss())
+                }
+                return geckoResult
+            }
+        }
+
         session.open(runtime)
         binding.geckoView.setSession(session)
-        com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, this, appType)
+        com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, applicationContext, appType)
+
+        // Restore prior browsing state if activity was recreated from process death
+        val savedState: GeckoSession.SessionState? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            savedInstanceState?.getParcelable(KEY_SESSION_STATE, GeckoSession.SessionState::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            savedInstanceState?.getParcelable(KEY_SESSION_STATE)
+        }
+        if (savedState != null) {
+            currentSessionState = savedState
+            session.restoreState(savedState)
+            pageLoaded = true
+        }
     }
 
     private fun startAppFlow() {
@@ -298,15 +474,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
     }
 
     fun loadUriWithPreferences(uri: String) {
-        if (FeatureManager.isEnabled(Feature.DARK_THEME)) {
-            val loader = GeckoSession.Loader()
-                .uri(uri)
-                .additionalHeaders(mapOf("Cookie" to "PREF=f6=400"))
-                .headerFilter(GeckoSession.HEADER_FILTER_UNRESTRICTED_UNSAFE)
-            geckoSession?.load(loader)
-        } else {
-            geckoSession?.loadUri(uri)
-        }
+        geckoSession?.loadUri(uri)
     }
 
     private fun handleFullScreen(fullScreen: Boolean) {
