@@ -268,7 +268,7 @@ abstract class BaseGeckoActivity : AppCompatActivity() {
 
         session.open(runtime)
         binding.geckoView.setSession(session)
-        com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, this)
+        com.geckoflux.media.GeckoMediaSessionManager.attachToSession(session, this, appType)
     }
 
     private fun startAppFlow() {

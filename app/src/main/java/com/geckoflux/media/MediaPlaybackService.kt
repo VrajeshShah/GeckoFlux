@@ -16,7 +16,10 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.geckoflux.MusicActivity
 import com.geckoflux.R
+import com.geckoflux.TubeActivity
+import com.geckoflux.navigation.AppType
 import org.mozilla.geckoview.MediaSession as GeckoMediaSession
 
 /**
@@ -83,15 +86,19 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
                 teardownAndStop()
             }
             ACTION_PLAY -> {
+                Log.d(TAG, "Notification Play action received")
                 GeckoMediaSessionManager.play()
             }
             ACTION_PAUSE -> {
+                Log.d(TAG, "Notification Pause action received")
                 GeckoMediaSessionManager.pause()
             }
             ACTION_NEXT -> {
+                Log.d(TAG, "Notification Next action received")
                 GeckoMediaSessionManager.nextTrack()
             }
             ACTION_PREV -> {
+                Log.d(TAG, "Notification Previous action received")
                 GeckoMediaSessionManager.previousTrack()
             }
         }
@@ -124,28 +131,35 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         androidMediaSession = AndroidMediaSession(this, "GeckoFluxMediaSession").apply {
             setCallback(object : AndroidMediaSession.Callback() {
                 override fun onPlay() {
+                    Log.d(TAG, "AndroidMediaSession onPlay callback")
                     GeckoMediaSessionManager.play()
                 }
 
                 override fun onPause() {
+                    Log.d(TAG, "AndroidMediaSession onPause callback")
                     GeckoMediaSessionManager.pause()
                 }
 
                 override fun onSkipToNext() {
+                    Log.d(TAG, "AndroidMediaSession onSkipToNext callback")
                     GeckoMediaSessionManager.nextTrack()
                 }
 
                 override fun onSkipToPrevious() {
+                    Log.d(TAG, "AndroidMediaSession onSkipToPrevious callback")
                     GeckoMediaSessionManager.previousTrack()
                 }
 
                 override fun onStop() {
+                    Log.d(TAG, "AndroidMediaSession onStop callback")
                     GeckoMediaSessionManager.stop()
                     teardownAndStop()
                 }
             })
+            setSessionActivity(createContentIntent())
             isActive = true
         }
+        updateAndroidPlaybackState()
     }
 
     private fun startForegroundWithNotification() {
@@ -190,7 +204,6 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
     // --- GeckoMediaSessionManager.Callback Implementation ---
 
     override fun onPlaybackStateChanged(playing: Boolean) {
-        if (this.isPlaying == playing) return // Ignore redundant callbacks
         this.isPlaying = playing
         Log.d(TAG, "onPlaybackStateChanged: isPlaying=$isPlaying")
 
@@ -213,7 +226,6 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
     }
 
     override fun onFeaturesChanged(features: Long) {
-        if (this.currentFeatures == features) return
         this.currentFeatures = features
         Log.d(TAG, "onFeaturesChanged: features=$features. Rebuilding notification actions.")
 
@@ -248,14 +260,38 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
+    private fun createContentIntent(): PendingIntent {
+        val targetClass = if (GeckoMediaSessionManager.currentAppType == AppType.MUSIC) {
+            MusicActivity::class.java
+        } else {
+            TubeActivity::class.java
+        }
+        val intent = Intent(this, targetClass).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            this,
+            100,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     private fun buildNotification(): Notification {
         val hasPrev = (currentFeatures and GeckoMediaSession.Feature.PREVIOUS_TRACK) != 0L
         val hasNext = (currentFeatures and GeckoMediaSession.Feature.NEXT_TRACK) != 0L
 
+        val isMusic = GeckoMediaSessionManager.currentAppType == AppType.MUSIC
+        val smallIcon = if (isMusic) R.mipmap.ic_launcher_music else R.mipmap.ic_launcher_tube
+        val contentIntent = createContentIntent()
+
+        androidMediaSession?.setSessionActivity(contentIntent)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_tube)
+            .setSmallIcon(smallIcon)
             .setContentTitle(currentTitle)
             .setContentText(currentArtist)
+            .setContentIntent(contentIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(isPlaying)
             .setShowWhen(false)
@@ -267,7 +303,7 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         if (hasPrev) {
             val prevIntent = PendingIntent.getService(
                 this,
-                1,
+                203,
                 Intent(this, MediaPlaybackService::class.java).apply { action = ACTION_PREV },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
@@ -275,13 +311,14 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
             actionIndex++
         }
 
-        // 2. Play / Pause Action
+        // 2. Play / Pause Action (Unique request code per state ensures distinct PendingIntent)
         val playPauseAction = if (isPlaying) ACTION_PAUSE else ACTION_PLAY
         val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val playPauseTitle = if (isPlaying) "Pause" else "Play"
+        val playPauseRequestCode = if (isPlaying) 201 else 202
         val playPauseIntent = PendingIntent.getService(
             this,
-            2,
+            playPauseRequestCode,
             Intent(this, MediaPlaybackService::class.java).apply { action = playPauseAction },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -293,7 +330,7 @@ class MediaPlaybackService : Service(), GeckoMediaSessionManager.Callback {
         if (hasNext) {
             val nextIntent = PendingIntent.getService(
                 this,
-                3,
+                204,
                 Intent(this, MediaPlaybackService::class.java).apply { action = ACTION_NEXT },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

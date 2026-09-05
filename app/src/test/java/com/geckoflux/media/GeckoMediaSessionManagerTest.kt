@@ -1,5 +1,6 @@
 package com.geckoflux.media
 
+import com.geckoflux.navigation.AppType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -82,5 +83,10 @@ class GeckoMediaSessionManagerTest {
         val featuresBoth = NEXT_TRACK or PREVIOUS_TRACK
         assertTrue((featuresBoth and NEXT_TRACK) != 0L)
         assertTrue((featuresBoth and PREVIOUS_TRACK) != 0L)
+    }
+
+    @Test
+    fun testCurrentAppTypeDefault() {
+        assertEquals(AppType.TUBE, GeckoMediaSessionManager.currentAppType)
     }
 }

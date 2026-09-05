@@ -2,6 +2,7 @@ package com.geckoflux.media
 
 import android.content.Context
 import android.util.Log
+import com.geckoflux.navigation.AppType
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.MediaSession
 
@@ -16,6 +17,8 @@ object GeckoMediaSessionManager {
     private var activeMediaSession: MediaSession? = null
     private var serviceCallback: Callback? = null
 
+    var currentAppType: AppType = AppType.TUBE
+        private set
     var isPlaying: Boolean = false
         private set
     var currentTitle: String? = null
@@ -51,26 +54,24 @@ object GeckoMediaSessionManager {
     }
 
     /**
-     * Attaches the MediaSession.Delegate to a GeckoSession.
+     * Attaches the MediaSession.Delegate to a GeckoSession with its originating app type.
      */
-    fun attachToSession(session: GeckoSession, context: Context) {
+    fun attachToSession(session: GeckoSession, context: Context, appType: AppType = AppType.TUBE) {
         activeSession = session
+        currentAppType = appType
 
         session.mediaSessionDelegate = object : MediaSession.Delegate {
             override fun onActivated(session: GeckoSession, mediaSession: MediaSession) {
                 Log.d(TAG, "MediaSession onActivated")
                 activeMediaSession = mediaSession
+                currentAppType = appType
                 MediaPlaybackService.start(context)
             }
 
             override fun onDeactivated(session: GeckoSession, mediaSession: MediaSession) {
                 Log.d(TAG, "MediaSession onDeactivated")
-                if (activeMediaSession == mediaSession) {
-                    activeMediaSession = null
-                }
                 isPlaying = false
                 serviceCallback?.onPlaybackStopped()
-                MediaPlaybackService.stop(context)
             }
 
             override fun onMetadata(
@@ -79,6 +80,8 @@ object GeckoMediaSessionManager {
                 metadata: MediaSession.Metadata
             ) {
                 Log.d(TAG, "MediaSession onMetadata: ${metadata.title} - ${metadata.artist}")
+                activeMediaSession = mediaSession
+                currentAppType = appType
                 currentTitle = metadata.title
                 currentArtist = metadata.artist
                 currentAlbum = metadata.album
@@ -87,6 +90,7 @@ object GeckoMediaSessionManager {
 
             override fun onFeatures(session: GeckoSession, mediaSession: MediaSession, features: Long) {
                 Log.d(TAG, "MediaSession onFeatures: $features")
+                activeMediaSession = mediaSession
                 currentFeatures = features
                 serviceCallback?.onFeaturesChanged(features)
             }
@@ -94,6 +98,7 @@ object GeckoMediaSessionManager {
             override fun onPlay(session: GeckoSession, mediaSession: MediaSession) {
                 Log.d(TAG, "MediaSession onPlay")
                 activeMediaSession = mediaSession
+                currentAppType = appType
                 isPlaying = true
                 MediaPlaybackService.start(context)
                 serviceCallback?.onPlaybackStateChanged(true)
@@ -101,18 +106,15 @@ object GeckoMediaSessionManager {
 
             override fun onPause(session: GeckoSession, mediaSession: MediaSession) {
                 Log.d(TAG, "MediaSession onPause")
+                activeMediaSession = mediaSession
                 isPlaying = false
                 serviceCallback?.onPlaybackStateChanged(false)
             }
 
             override fun onStop(session: GeckoSession, mediaSession: MediaSession) {
                 Log.d(TAG, "MediaSession onStop")
-                if (activeMediaSession == mediaSession) {
-                    activeMediaSession = null
-                }
                 isPlaying = false
                 serviceCallback?.onPlaybackStopped()
-                MediaPlaybackService.stop(context)
             }
         }
     }
@@ -126,22 +128,27 @@ object GeckoMediaSessionManager {
     }
 
     fun play() {
+        Log.d(TAG, "play() invoked on activeMediaSession: $activeMediaSession")
         activeMediaSession?.play()
     }
 
     fun pause() {
+        Log.d(TAG, "pause() invoked on activeMediaSession: $activeMediaSession")
         activeMediaSession?.pause()
     }
 
     fun nextTrack() {
+        Log.d(TAG, "nextTrack() invoked on activeMediaSession: $activeMediaSession")
         activeMediaSession?.nextTrack()
     }
 
     fun previousTrack() {
+        Log.d(TAG, "previousTrack() invoked on activeMediaSession: $activeMediaSession")
         activeMediaSession?.previousTrack()
     }
 
     fun stop() {
+        Log.d(TAG, "stop() invoked on activeMediaSession: $activeMediaSession")
         activeMediaSession?.stop()
     }
 }
